@@ -1,35 +1,72 @@
 const socket = io();
 let user;
+let askingForName = true;
 
-Swal.fire({
-  title: "Hola",
-  text: "Ingresa tu nombre para continuar",
-  input: "text",
-  inputValidator: (value) => {
-    return !value && "¡Ingresa tu nombre!";
-  },
-  allowOutsideClick: false,
-}).then((value) => {
-  user = value.value;
-  socket.emit("newUser", user);
+function scrollToBottom() {
+  const chatMessages = document.getElementById("chat-messages");
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function askForNameAndSendMessage(message) {
+  Swal.fire({
+    title: "Hola",
+    text: "Ingresa tu nombre para continuar",
+    input: "text",
+    inputValidator: (value) => {
+      return !value && "¡Ingresa tu nombre!";
+    },
+    allowOutsideClick: false,
+  }).then((value) => {
+    user = value.value;
+    socket.emit("newUser", user);
+    askingForName = false;
+    if (message.trim() !== "") {
+      socket.emit("message", {
+        user,
+        message,
+      });
+    }
+  });
+}
+
+askForNameAndSendMessage(""); // Llamar al inicio para solicitar el nombre
+
+const chatbox = document.getElementById("chatbox");
+chatbox.addEventListener("keyup", (e) => {
+  if (e.key === "Enter") {
+    const message = e.target.value;
+    if (user === undefined && !askingForName) {
+      askForNameAndSendMessage(message);
+      chatbox.value = "";
+    } else {
+      if (message.trim() !== "") {
+        socket.emit("message", {
+          user,
+          message,
+        });
+        chatbox.value = "";
+      }
+    }
+  }
 });
 
 socket.on("userConnected", (username) => {
-  Swal.fire({
-    position:"top-right",
-    toast:true,
-    title: "Nuevo usuario",
-    text: `${username} se ha conectado al chat`,
-  });
-});
-
-chatbox.addEventListener("keyup", (e) => {
-  if (e.key === "Enter") {
-    socket.emit("message", {
-      user,
-      message: e.target.value,
+  if (user !== undefined && !askingForName) {
+    Swal.fire({
+      position: "top-right",
+      toast: true,
+      title: "Nuevo usuario",
+      text: `${username} se ha conectado al chat`,
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      didOpen: (toast) => {
+        toast.addEventListener("mouseenter", () => {
+          Swal.stopTimer();
+        });
+        toast.addEventListener("mouseleave", Swal.resumeTimer);
+      },
     });
-    chatbox.value = "";
   }
 });
 
@@ -40,5 +77,8 @@ socket.on("messages", (data) => {
   data.forEach((message) => {
     messages += `<strong>${message.user}</strong>: ${message.message} <br/>`;
   });
+
   log.innerHTML = messages;
+  scrollToBottom();
 });
+
