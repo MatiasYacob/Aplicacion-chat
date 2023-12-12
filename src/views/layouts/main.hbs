@@ -4,37 +4,90 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat</title>
-  <style>
-    .chat-container {
-      display: flex;
-      flex-direction: column;
-      width: 300px;
-      height: 400px;
-      background-color: #030303;
-      border-radius: 15px;
-      padding: 10px;
-      overflow: hidden;
-    }
+ const socket = io();
+let user;
+let askingForName = true;
 
-    .chat {
-      margin-bottom: 10px;
-    }
+function scrollToBottom() {
+  const chatMessages = document.getElementById("chat-messages");
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
-    input[type="text"] {
-      width: calc(100% - 20px);
-      padding: 8px;
-      border: none;
-      border-radius: 10px;
-      outline: none;
+function askForNameAndSendMessage(message) {
+  Swal.fire({
+    title: "Hola",
+    text: "Ingresa tu nombre para continuar",
+    input: "text",
+    inputValidator: (value) => {
+      return !value && "¡Ingresa tu nombre!";
+    },
+    allowOutsideClick: false,
+  }).then((value) => {
+    user = value.value;
+    socket.emit("newUser", user);
+    askingForName = false;
+    if (message.trim() !== "") {
+      socket.emit("message", {
+        user,
+        message,
+      });
     }
+  });
+}
 
-    #messages {
-      padding: 10px;
-      background-color: #ffffff;
-      border-radius: 10px;
-      margin: 0;
+askForNameAndSendMessage(""); // Llamar al inicio para solicitar el nombre
+
+const chatbox = document.getElementById("chatbox");
+chatbox.addEventListener("keyup", (e) => {
+  if (e.key === "Enter") {
+    const message = e.target.value;
+    if (user === undefined && !askingForName) {
+      askForNameAndSendMessage(message);
+      chatbox.value = "";
+    } else {
+      if (message.trim() !== "") {
+        socket.emit("message", {
+          user,
+          message,
+        });
+        chatbox.value = "";
+      }
     }
-  </style>
+  }
+});
+
+socket.on("userConnected", (username) => {
+  if (user !== undefined && !askingForName) {
+    Swal.fire({
+      position: "top-right",
+      toast: true,
+      title: "Nuevo usuario",
+      text: `${username} se ha conectado al chat`,
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      didOpen: (toast) => {
+        toast.addEventListener("mouseenter", () => {
+          Swal.stopTimer();
+        });
+        toast.addEventListener("mouseleave", Swal.resumeTimer);
+      },
+    });
+  }
+});
+
+socket.on("messages", (data) => {
+  const log = document.querySelector("#messages");
+  let messages = "";
+
+  data.forEach((message) => {
+    messages += `<strong>${message.user}</strong>: ${message.message} <br/>`;
+  });
+
+  log.innerHTML = messages;
+  scrollToBottom();
+});
+
 </head>
 <body>
   
